@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fabrication Management System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@300;400;500;600&display=swap');
+:root {
+  --bg:#0e0f11;--bg2:#161719;--bg3:#1e2023;--bg4:#26292e;
+  --border:#2e3238;--border2:#3a3f47;
+  --text:#e8eaed;--text2:#9aa0ab;--text3:#5c6370;
+  --accent:#4a9eff;--accent2:#1a5fc8;
+  --green:#3dd68c;--green-bg:#0d2e1c;--green-bd:#1a5c38;
+  --amber:#f5a623;--amber-bg:#2e1f0a;--amber-bd:#5c3d12;
+  --red:#ff5f5f;--red-bg:#2e0f0f;--red-bd:#5c1f1f;
+  --blue:#4a9eff;--blue-bg:#0a1e3a;--blue-bd:#1a3d6e;
+  --purple:#b47fff;--purple-bg:#1a0f2e;--purple-bd:#3d1f6e;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans JP',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;min-height:100vh;}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{width:26px;height:26px;background:var(--accent);border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:500;color:#fff;}
+.brand-name{font-size:13px;font-weight:600;}
+.brand-sub{font-size:11px;color:var(--text3);font-family:var(--mono);}
+.sync-status{display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);transition:background .3s;}
+.sync-dot.ok{background:var(--green);}
+.sync-dot.busy{background:var(--amber);animation:pulse .8s infinite;}
+.sync-dot.err{background:var(--red);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.layout{display:flex;height:calc(100vh - 50px);}
+.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+.sb-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;}
+.sb-list{flex:1;overflow-y:auto;padding:6px;}
+.proj-item{padding:9px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:2px;transition:all .1s;}
+.proj-item:hover{background:var(--bg3);}
+.proj-item.active{background:var(--blue-bg);border-color:var(--blue-bd);}
+.proj-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.proj-meta{font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono);}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text3);}
+.empty-icon{width:60px;height:60px;border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;}
+/* loading overlay */
+.loading-full{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;}
+.spinner{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toolbar{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);}
+.proj-title{font-size:14px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.view-tabs{display:flex;gap:2px;background:var(--bg3);border-radius:6px;padding:2px;flex-wrap:wrap;}
+.view-tab{padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--text2);font-family:var(--mono);border:none;background:transparent;transition:all .1s;white-space:nowrap;}
+.view-tab:hover{color:var(--text);}
+.view-tab.active{background:var(--bg2);color:var(--blue);box-shadow:0 0 0 1px var(--border2);}
+.stats{display:flex;gap:14px;padding:8px 18px;border-bottom:1px solid var(--border);background:var(--bg2);flex-wrap:wrap;align-items:center;}
+.stat{display:flex;align-items:center;gap:5px;}
+.stat-dot{width:7px;height:7px;border-radius:50%;}
+.stat-val{font-family:var(--mono);font-size:12px;}
+.stat-lbl{font-size:11px;color:var(--text3);}
+.filters{padding:8px 18px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.chip{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--sans);transition:all .1s;user-select:none;}
+.chip:hover{border-color:var(--border2);color:var(--text);}
+.chip.on{background:var(--bg4);border-color:var(--accent);color:var(--accent);}
+.chip-a.on{background:var(--green-bg);border-color:var(--green-bd);color:var(--green);}
+.chip-r.on{background:var(--red-bg);border-color:var(--red-bd);color:var(--red);}
+.chip-c.on{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber);}
+.tbl-wrap{flex:1;overflow:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead{position:sticky;top:0;z-index:10;background:var(--bg2);}
+th{padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;font-family:var(--mono);}
+td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.bulk-row th{background:var(--bg3);padding:5px 10px;border-bottom:1px solid var(--border2);}
+.bulk-cell{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.bulk-cb{accent-color:var(--green);width:13px;height:13px;cursor:pointer;}
+.bulk-label{font-size:9px;color:var(--text3);font-family:var(--mono);text-transform:none;letter-spacing:0;white-space:nowrap;}
+.asm-row td{background:var(--bg3);font-weight:600;font-size:11px;color:var(--text2);}
+.asm-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;gap:7px;}
+.asm-toggle:hover{color:var(--text);}
+.ch{display:inline-block;transition:transform .15s;font-size:9px;}
+.ch.open{transform:rotate(90deg);}
+tr.part td{background:var(--bg);}
+tr.part:hover td{background:rgba(255,255,255,0.02);}
+tr.s-added td{background:var(--green-bg)!important;}
+tr.s-added td:first-child{border-left:3px solid var(--green);}
+tr.s-removed td{background:var(--red-bg)!important;opacity:.75;}
+tr.s-removed td:first-child{border-left:3px solid var(--red);}
+tr.s-changed td{background:var(--amber-bg)!important;}
+tr.s-changed td:first-child{border-left:3px solid var(--amber);}
+tr.s-asm-mod td{background:var(--purple-bg)!important;}
+tr.s-asm-mod td:first-child{border-left:3px solid var(--purple);}
+.badge{font-size:10px;padding:2px 6px;border-radius:3px;font-family:var(--mono);font-weight:500;white-space:nowrap;display:inline-block;margin-bottom:2px;}
+.b-added{background:var(--green-bg);color:var(--green);border:1px solid var(--green-bd);}
+.b-removed{background:var(--red-bg);color:var(--red);border:1px solid var(--red-bd);}
+.b-changed{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-bd);}
+.procs{display:flex;gap:3px;flex-wrap:wrap;}
+.pc{display:flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;user-select:none;white-space:nowrap;transition:all .1s;}
+.pc:hover{border-color:var(--border2);}
+.pc.on{background:var(--green-bg);border-color:var(--green-bd);}
+.pc input[type=checkbox]{accent-color:var(--green);width:10px;height:10px;cursor:pointer;pointer-events:none;}
+.pc-lbl{font-size:10px;font-family:var(--mono);color:var(--text2);pointer-events:none;}
+.pc.on .pc-lbl{color:var(--green);}
+.prog{display:flex;align-items:center;gap:6px;}
+.prog-bar{flex:1;min-width:50px;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;background:var(--green);border-radius:2px;transition:width .3s;}
+.prog-pct{font-size:10px;font-family:var(--mono);color:var(--text3);min-width:28px;}
+.mono{font-family:var(--mono);color:var(--text3);font-size:11px;}
+.section-main{font-size:10px;padding:1px 5px;border-radius:3px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-bd);font-family:var(--mono);}
+.section-sec{font-size:10px;padding:1px 5px;border-radius:3px;background:var(--bg4);color:var(--text3);border:1px solid var(--border);font-family:var(--mono);}
+.btn{border:1px solid var(--border2);background:var(--bg3);color:var(--text);padding:5px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-family:var(--sans);font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
+.btn:hover{background:var(--bg4);}
+.btn-p{background:var(--accent2);border-color:var(--accent);color:#fff;}
+.btn-p:hover{background:var(--accent);}
+.btn-d{background:var(--red-bg);border-color:var(--red-bd);color:var(--red);}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px);}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:22px;width:520px;max-width:96vw;max-height:92vh;overflow-y:auto;}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+.mc{cursor:pointer;background:none;border:none;color:var(--text3);font-size:20px;line-height:1;}
+.mc:hover{color:var(--text);}
+.fg{margin-bottom:12px;}
+.fl2{display:block;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px;}
+.fi{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:var(--text);font-size:12px;font-family:var(--sans);outline:none;}
+.fi:focus{border-color:var(--accent);}
+.dz{border:2px dashed var(--border2);border-radius:7px;padding:28px;text-align:center;cursor:pointer;transition:all .15s;color:var(--text3);}
+.dz:hover,.dz.over{border-color:var(--accent);background:var(--blue-bg);color:var(--text2);}
+.dz-ok{background:var(--green-bg)!important;border-color:var(--green-bd)!important;color:var(--green)!important;}
+.dz-warn{background:var(--amber-bg)!important;border-color:var(--amber-bd)!important;color:var(--amber)!important;}
+.detect-info{margin-top:10px;padding:10px 12px;border-radius:6px;font-size:11px;font-family:var(--mono);border:1px solid var(--border);line-height:1.6;word-break:break-all;}
+.detect-ok{background:var(--green-bg);border-color:var(--green-bd);color:var(--green);}
+.detect-warn{background:var(--amber-bg);border-color:var(--amber-bd);color:var(--amber);}
+.ma{display:flex;gap:7px;justify-content:flex-end;margin-top:18px;}
+.name-banner{background:var(--blue-bg);border-bottom:1px solid var(--blue-bd);padding:8px 18px;display:flex;align-items:center;gap:10px;font-size:12px;}
+.name-input{background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:4px 8px;color:var(--text);font-size:12px;font-family:var(--sans);outline:none;width:160px;}
+.name-input:focus{border-color:var(--accent);}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--bg3);border:1px solid var(--border2);border-radius:7px;padding:10px 14px;font-size:12px;color:var(--text);z-index:9999;transform:translateY(60px);opacity:0;transition:all .22s;max-width:320px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.err{border-color:var(--red-bd);}
+.hidden{display:none!important;}
+.asm-badges{display:inline-flex;gap:4px;margin-left:10px;}
+.ab{font-size:9px;padding:1px 5px;border-radius:3px;font-family:var(--mono);}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay — shown only when no local cache (first visit / incognito) -->
+<div class="loading-full" id="app-loading" style="display:none">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--text3);font-family:var(--mono);margin-top:8px">Loading from Google Sheets…</div>
+  <div style="font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:4px">First load takes 5–10 seconds</div>
+</div>
+
+<!-- Thin sync bar — shown during background refresh for returning users -->
+<div id="sync-bar" style="display:none;position:fixed;top:50px;left:0;right:0;z-index:99;background:var(--blue-bg);border-bottom:1px solid var(--blue-bd);padding:5px 20px;font-size:11px;font-family:var(--mono);color:var(--blue);align-items:center;gap:8px;">
+  <div class="spinner" style="width:12px;height:12px;border-width:2px;flex-shrink:0"></div>
+  <span>Syncing with Google Sheets…</span>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">FMS</div>
+    <span class="brand-name">Fabrication Management System</span>
+    <span class="brand-sub">&nbsp;// 製作進捗管理</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="sync-status">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label" style="color:var(--text3)">Connecting…</span>
+    </div>
+    <button class="btn" id="btn-refresh" title="Pull latest data from Google Sheets">↻ Refresh</button>
+    <button class="btn btn-p" id="btn-new-proj">＋ New Project</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sb-head">Projects <span id="proj-count" style="font-family:var(--mono);font-weight:400">0</span></div>
+    <div class="sb-list" id="sb-list"></div>
+  </div>
+  <div class="main">
+    <div class="empty" id="empty">
+      <div class="empty-icon">📋</div>
+      <div style="font-size:15px;font-weight:500;color:var(--text2)">No project selected</div>
+      <div style="font-size:12px">Create a project or select one from the sidebar</div>
+      <button class="btn btn-p" id="btn-new-proj2">＋ New Project</button>
+    </div>
+    <div class="hidden" id="pview"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="mc"></div>
+
+<script>
+'use strict';
+
+// ── CONFIG ─────────────────────────────────────────────
+const API = 'https://script.google.com/macros/s/AKfycbxAZUbOb5mAPrkxf2TyHL4zybw3jySHW5GxR4cNzaB3mv-qBj7l3T44JjR3T2JyY1x29w/exec';
+
+// ── LOCAL STATE ────────────────────────────────────────
+// S is the local cache. Source of truth is Google Sheets.
+// S.projects[id] = { name, client, revisions:[{rev,date,data:[]}], progress:{} }
+let S = { projects:{}, active:null, collapsed:{}, userName:'' };
+
+const PROCS = [
+  {k:'cut',  l:'切断'},
+  {k:'drill',l:'孔明け'},
+  {k:'bevel',l:'開先'},
+  {k:'tack', l:'仮溶接'},
+  {k:'weld', l:'本溶接'},
+];
+
+const KNOWN_COLS = [
+  'DWG.NO','REV.NO','REV.DATE','ITEM','ASSM-MK','SECTION','SHAPE',
+  'PART-MK','PROFILE','LENGTH','TOTALQTY','WEIGHT(Kg)','PAINT','MATL',
+  'FINISH','GRID','ELEV','REMARK'
+];
+
+function loadLocal(){ try{ const s=localStorage.getItem('scdc_v8'); if(s) S=JSON.parse(s); }catch(e){} }
+function saveLocal(){ localStorage.setItem('scdc_v8',JSON.stringify(S)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showToast(msg,type){ const el=document.getElementById('toast'); el.textContent=msg; el.className='toast show '+(type||''); setTimeout(()=>el.className='toast',3500); }
+function closeModal(){ document.getElementById('mc').innerHTML=''; }
+
+// ── SYNC STATUS ────────────────────────────────────────
+function setSyncStatus(state,msg){
+  const dot=document.getElementById('sync-dot');
+  const lbl=document.getElementById('sync-label');
+  dot.className='sync-dot '+state;
+  lbl.textContent=msg;
+  lbl.style.color=state==='ok'?'var(--green)':state==='err'?'var(--red)':'var(--text3)';
+}
+
+// ── API CALLS ──────────────────────────────────────────
+async function apiGet(params){
+  const url=API+'?'+new URLSearchParams(params).toString();
+  const r=await fetch(url);
+  const j=await r.json();
+  if(!j.ok) throw new Error(j.error||'API error');
+  return j.data;
+}
+async function apiPost(body){
+  const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});
+  const j=await r.json();
+  if(!j.ok) throw new Error(j.error||'API error');
+  return j.data;
+}
+
+// ── KEY STORE ──────────────────────────────────────────
+const _ks={};let _kseq=1;
+function storeKey(k){ for(const [id,v] of Object.entries(_ks)){if(v===k)return id;} const id='k'+(_kseq++);_ks[id]=k;return id; }
+function resolveKey(id){ return _ks[id]||null; }
+
+// ── TEKLA BOM PARSING ──────────────────────────────────
+function detectAndParse(wb){
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  let bestRow=0,bestScore=0;
+  for(let i=0;i<Math.min(raw.length,20);i++){
+    const row=raw[i].map(c=>String(c).trim().toUpperCase());
+    let score=0;
+    for(const col of KNOWN_COLS){if(row.includes(col.toUpperCase()))score++;}
+    if(score>bestScore){bestScore=score;bestRow=i;}
+  }
+  const headers=raw[bestRow].map(c=>String(c).trim());
+  const data=[];
+  for(let i=bestRow+1;i<raw.length;i++){
+    const row=raw[i];
+    if(row.every(c=>String(c).trim()===''))continue;
+    const obj={};
+    headers.forEach((h,j)=>{if(h)obj[h]=String(row[j]??'').trim();});
+    data.push(obj);
+  }
+  return {headerRow:bestRow+1,colsFound:bestScore,headers,data};
+}
+
+function mapRow(row,i){
+  return {
+    item:     row['ITEM']        ||String(i+1),
+    assembly: (row['ASSM-MK']   ||row['ASSEMBLY']||'Unknown').trim(),
+    section:  row['SECTION']    ||'',
+    shape:    row['SHAPE']      ||'',
+    partMark: (row['PART-MK']   ||row['PART_MK'] ||String(i)).trim(),
+    profile:  row['PROFILE']    ||'',
+    length:   row['LENGTH']     ||'',
+    qty:      row['TOTALQTY']   ||row['QTY']     ||'',
+    weight:   row['WEIGHT(Kg)'] ||row['WEIGHT']  ||'',
+    paint:    row['PAINT']      ||'',
+    material: row['MATL']       ||row['MATERIAL']||'',
+    finish:   row['FINISH']     ||'',
+    grid:     row['GRID']       ||'',
+    elev:     row['ELEV']       ||'',
+    remark:   row['REMARK']     ||'',
+  };
+}
+
+function pkey(p){ return p.assembly+'||'+p.partMark; }
+
+// ── MASTER BOM ─────────────────────────────────────────
+function buildMaster(proj){
+  const mm={};
+  for(const p of proj.revisions[0].data){
+    const k=pkey(p);mm[k]={...p,revHistory:[],masterStatus:'baseline'};
+  }
+  for(let i=1;i<proj.revisions.length;i++){
+    const prev=proj.revisions[i-1].data,curr=proj.revisions[i].data;
+    const rl='Rev '+i,pm={},cm={};
+    prev.forEach(p=>{pm[pkey(p)]=p;});
+    curr.forEach(p=>{cm[pkey(p)]=p;});
+    for(const [k,p] of Object.entries(cm)){
+      if(!pm[k]){if(!mm[k])mm[k]={...p,revHistory:[]};mm[k].revHistory.push({rev:rl,status:'added',changes:[]});mm[k].masterStatus='added';Object.assign(mm[k],p);}
+    }
+    for(const [k,p] of Object.entries(pm)){
+      if(!cm[k]){if(!mm[k])mm[k]={...p,revHistory:[]};mm[k].revHistory.push({rev:rl,status:'removed',changes:[]});mm[k].masterStatus='removed';}
+    }
+    for(const [k,c] of Object.entries(cm)){
+      if(!pm[k])continue;
+      const p=pm[k],ch=[];
+      const pq=parseFloat(p.qty)||0,cq=parseFloat(c.qty)||0;
+      if(pq!==cq&&(pq||cq))ch.push({field:'Qty',type:cq>pq?'increased':'decreased',from:pq,to:cq});
+      const pl=parseFloat(p.length)||0,cl=parseFloat(c.length)||0;
+      if(pl!==cl&&(pl||cl))ch.push({field:'Length',type:cl>pl?'increased':'decreased',from:pl,to:cl});
+      for(const f of['profile','material','shape','paint','finish','weight']){
+        if(String(p[f]||'')!==String(c[f]||''))ch.push({field:f,type:'changed',from:p[f]||'—',to:c[f]||'—'});
+      }
+      if(ch.length){if(!mm[k])mm[k]={...p,revHistory:[]};mm[k].revHistory.push({rev:rl,status:'changed',changes:ch});if(mm[k].masterStatus!=='removed')mm[k].masterStatus='changed';Object.assign(mm[k],c);}
+      else{if(mm[k])Object.assign(mm[k],c);}
+    }
+  }
+  return mm;
+}
+
+// ── PROGRESS ──────────────────────────────────────────
+function getProgress(projId,pk){
+  const proj=S.projects[projId];
+  const steps=(proj.progress&&proj.progress[pk])||{};
+  const done=PROCS.filter(p=>steps[p.k]).length;
+  return{steps,pct:Math.round(done/PROCS.length*100)};
+}
+
+// ── FULL REFRESH FROM SHEETS ───────────────────────────
+// Single API call — returns projects + BOM + progress together.
+// Runs in background after UI is already visible.
+async function fullRefresh(silent){
+  const bar = document.getElementById('sync-bar');
+  if(bar) bar.style.display = 'flex';
+  setSyncStatus('busy', 'Syncing…');
+  try{
+    // ONE call — gets everything
+    const all = await apiGet({action:'getAll'});
+    const { projects=[], bom={}, progress={} } = all;
+
+    // Merge projects + BOM
+    for(const proj of projects){
+      const id = proj.projectId || proj.projectid;
+      if(!id) continue;
+      const revisions = (bom[id] || []).map(r=>({rev:r.rev, date:r.date, data:r.parts}));
+      if(!revisions.length) continue;
+
+      if(!S.projects[id]){
+        // Brand new project on this device
+        S.projects[id] = {
+          name:      proj.name || proj.projectName || '',
+          client:    proj.client || '',
+          revisions,
+          progress:  {},
+        };
+      } else {
+        // Known project — update name/client and add any new revisions
+        S.projects[id].name   = proj.name || proj.projectName || S.projects[id].name;
+        S.projects[id].client = proj.client || S.projects[id].client;
+        const localCount = S.projects[id].revisions.length;
+        for(const r of revisions){
+          if(r.rev >= localCount){
+            S.projects[id].revisions[r.rev] = r;
+          }
+        }
+      }
+    }
+
+    // Merge progress — remote true always wins
+    for(const [projId, partMap] of Object.entries(progress)){
+      if(!S.projects[projId]) continue;
+      if(!S.projects[projId].progress) S.projects[projId].progress = {};
+      for(const [partKey, steps] of Object.entries(partMap)){
+        if(!S.projects[projId].progress[partKey]) S.projects[projId].progress[partKey] = {};
+        for(const [step, val] of Object.entries(steps)){
+          if(val === true) S.projects[projId].progress[partKey][step] = true;
+        }
+      }
+    }
+
+    saveLocal();
+    setSyncStatus('ok', 'Synced · ' + new Date().toLocaleTimeString('ja-JP'));
+    renderSB();
+    if(S.active && S.projects[S.active]) renderPView();
+    if(!silent) showToast('Refreshed from Google Sheets');
+
+  } catch(e){
+    setSyncStatus('err', 'Offline');
+    if(!silent) showToast('Could not reach Google Sheets', 'err');
+  } finally {
+    if(bar) bar.style.display = 'none';
+  }
+}
+
+// ── SAVE SINGLE PROGRESS TICK ──────────────────────────
+async function syncTick(projId,partKey,step,checked,partMark,assembly){
+  const proj=S.projects[projId];
+  setSyncStatus('busy','Saving…');
+  try{
+    await apiPost({action:'saveProgress',projectId:projId,projectName:proj.name,
+      partKey,step,checked,partMark,assembly,updatedBy:S.userName||'unknown'});
+    setSyncStatus('ok','Saved · '+new Date().toLocaleTimeString('ja-JP'));
+  }catch(e){
+    setSyncStatus('err','Sync failed — saved locally');
+    showToast('Sync failed — progress saved locally','err');
+  }
+}
+
+// ── SAVE BOM REVISION TO SHEETS ────────────────────────
+async function syncRevision(projId,revIndex,revDate,parts){
+  const proj=S.projects[projId];
+  try{
+    await apiPost({action:'saveBOM',projectId:projId,revIndex,revDate,parts});
+    await apiPost({action:'saveProject',projectId:projId,projectName:proj.name,
+      client:proj.client||'',revCount:proj.revisions.length});
+  }catch(e){
+    showToast('BOM saved locally — Sheets sync failed. Team will see it after next successful sync.','err');
+  }
+}
+
+// ── SIDEBAR ───────────────────────────────────────────
+function renderSB(){
+  const ids=Object.keys(S.projects);
+  document.getElementById('proj-count').textContent=ids.length;
+  const list=document.getElementById('sb-list');
+  if(!ids.length){list.innerHTML='<div style="padding:14px;color:var(--text3);font-size:11px;text-align:center">No projects yet</div>';return;}
+  list.innerHTML=ids.map(id=>{
+    const p=S.projects[id];
+    return`<div class="proj-item ${S.active===id?'active':''}" data-projid="${id}">
+      <div class="proj-name">${esc(p.name)}</div>
+      <div class="proj-meta">${esc(p.client||'—')} · ${p.revisions.length} rev(s)</div>
+    </div>`;
+  }).join('');
+}
+
+function selProj(id){
+  S.active=id;S._view='master';S._rawRev=0;S._filter='all';
+  renderSB();renderPView();
+}
+
+// ── PROJECT VIEW ───────────────────────────────────────
+function renderPView(){
+  const proj=S.projects[S.active];
+  if(!proj)return;
+  document.getElementById('empty').classList.add('hidden');
+  const pv=document.getElementById('pview');
+  pv.className='';pv.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;';
+  const view=S._view||'master',revs=proj.revisions,hasRevs=revs.length>1;
+  const master=buildMaster(proj),mArr=Object.values(master);
+  const stats={total:mArr.length,added:mArr.filter(p=>p.masterStatus==='added').length,removed:mArr.filter(p=>p.masterStatus==='removed').length,changed:mArr.filter(p=>p.masterStatus==='changed').length};
+  const revTabsHTML=revs.map((r,i)=>`<button class="view-tab ${view==='raw'&&S._rawRev===i?'active':''}" data-action="toraw" data-rev="${i}">${i===0?'Rev 0 (Base)':'Rev '+i}<span style="font-size:9px;color:var(--text3);margin-left:2px">${r.date}</span></button>`).join('');
+  pv.innerHTML=`
+    <div class="toolbar">
+      <div class="proj-title">${esc(proj.name)}</div>
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0">${esc(proj.client||'')}</span>
+      <div class="view-tabs">
+        <button class="view-tab ${view==='master'?'active':''}" data-action="tomaster">Master BOM</button>
+        ${revTabsHTML}
+      </div>
+      <button class="btn" data-action="openrev">＋ Add Revision</button>
+      <button class="btn btn-d" data-action="delproj">Delete</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-dot" style="background:var(--text3)"></div><span class="stat-val">${stats.total}</span><span class="stat-lbl">total parts</span></div>
+      ${hasRevs?`<div class="stat"><div class="stat-dot" style="background:var(--green)"></div><span class="stat-val">${stats.added}</span><span class="stat-lbl">added</span></div><div class="stat"><div class="stat-dot" style="background:var(--red)"></div><span class="stat-val">${stats.removed}</span><span class="stat-lbl">removed</span></div><div class="stat"><div class="stat-dot" style="background:var(--amber)"></div><span class="stat-val">${stats.changed}</span><span class="stat-lbl">changed</span></div>`:''}
+      <div style="flex:1"></div>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">${revs.length} revision(s)</span>
+    </div>
+    <div class="filters">
+      <span style="font-size:11px;color:var(--text3);margin-right:2px">Filter:</span>
+      <button class="chip ${S._filter==='all'?'on':''}" data-filter="all">All</button>
+      <button class="chip ${S._filter==='incomplete'?'on':''}" data-filter="incomplete">Incomplete</button>
+      <button class="chip ${S._filter==='main'?'on':''}" data-filter="main">MAIN only</button>
+      ${hasRevs?`<button class="chip chip-a ${S._filter==='added'?'on':''}" data-filter="added">＋ Added (${stats.added})</button><button class="chip chip-r ${S._filter==='removed'?'on':''}" data-filter="removed">− Removed (${stats.removed})</button><button class="chip chip-c ${S._filter==='changed'?'on':''}" data-filter="changed">△ Changed (${stats.changed})</button>`:''}
+    </div>
+    <div class="tbl-wrap"><table id="main-table"><thead id="main-thead"></thead><tbody id="main-tbody"></tbody></table></div>`;
+  renderUserBanner();
+  if(view==='master') renderMaster(master,proj,hasRevs);
+  else renderRaw(proj,S._rawRev||0);
+}
+
+// ── USERNAME BANNER ────────────────────────────────────
+function renderUserBanner(){
+  const existing=document.getElementById('user-banner');
+  if(existing)existing.remove();
+  if(S.userName)return;
+  const banner=document.createElement('div');
+  banner.id='user-banner';banner.className='name-banner';
+  banner.innerHTML=`<span style="color:var(--text2)">Your name (recorded in Google Sheets with each tick):</span>
+    <input class="name-input" id="uname-input" placeholder="e.g. Taro / 田中">
+    <button class="btn btn-p" id="uname-save">Save</button>`;
+  document.getElementById('pview').insertBefore(banner,document.getElementById('pview').firstChild);
+  document.getElementById('uname-save').onclick=()=>{
+    const v=document.getElementById('uname-input').value.trim();
+    if(!v){showToast('Please enter your name');return;}
+    S.userName=v;saveLocal();banner.remove();showToast('Name saved: '+v);
+  };
+}
+
+// ── MASTER TABLE ───────────────────────────────────────
+function renderMaster(master,proj,hasRevs){
+  const colCount=hasRevs?10:9;
+  const thead=document.getElementById('main-thead');thead.innerHTML='';
+  const tr1=document.createElement('tr');
+  ['Assembly','Section','Part mark','Profile','Length','Qty','Weight','Process','Progress',...(hasRevs?['Rev status']:[])].forEach((h,i)=>{
+    const th=document.createElement('th');th.textContent=h;
+    if(i===4||i===5||i===6)th.style.width='65px';
+    if(i===8)th.style.width='75px';
+    if(i===9)th.style.minWidth='200px';
+    tr1.appendChild(th);
+  });
+  thead.appendChild(tr1);
+  // Bulk row
+  const tr2=document.createElement('tr');tr2.className='bulk-row';
+  for(let i=0;i<7;i++){const th=document.createElement('th');if(i===0){th.style.fontSize='9px';th.style.color='var(--text3)';th.textContent='Bulk check ↓';}tr2.appendChild(th);}
+  const procTh=document.createElement('th');procTh.style.padding='4px 10px';
+  const procDiv=document.createElement('div');procDiv.style.cssText='display:flex;gap:3px;flex-wrap:wrap;';
+  PROCS.forEach(p=>{const cell=document.createElement('div');cell.className='bulk-cell';const cb=document.createElement('input');cb.type='checkbox';cb.className='bulk-cb';cb.dataset.action='bulkcheck';cb.dataset.step=p.k;const lbl=document.createElement('div');lbl.className='bulk-label';lbl.textContent=p.l;cell.appendChild(cb);cell.appendChild(lbl);procDiv.appendChild(cell);});
+  procTh.appendChild(procDiv);tr2.appendChild(procTh);
+  for(let i=0;i<(hasRevs?2:1);i++)tr2.appendChild(document.createElement('th'));
+  thead.appendChild(tr2);
+
+  const groups={};
+  for(const [k,p] of Object.entries(master)){if(!groups[p.assembly])groups[p.assembly]=[];groups[p.assembly].push({_k:k,...p});}
+  const filter=S._filter,frag=document.createDocumentFragment();let hasRows=false;
+
+  for(const [asmName,parts] of Object.entries(groups)){
+    const aAdded=parts.filter(p=>p.masterStatus==='added').length;
+    const aRemoved=parts.filter(p=>p.masterStatus==='removed').length;
+    const aChanged=parts.filter(p=>p.masterStatus==='changed').length;
+    const aTotal=aAdded+aRemoved+aChanged;
+    let vis=parts;
+    if(filter==='added')     vis=parts.filter(p=>p.masterStatus==='added');
+    if(filter==='removed')   vis=parts.filter(p=>p.masterStatus==='removed');
+    if(filter==='changed')   vis=parts.filter(p=>p.masterStatus==='changed');
+    if(filter==='main')      vis=parts.filter(p=>(p.section||'').toUpperCase()==='MAIN');
+    if(filter==='incomplete')vis=parts.filter(p=>getProgress(S.active,p._k).pct<100);
+    if(vis.length===0)continue;
+    hasRows=true;
+    const ck=S.active+'_'+asmName,collapsed=!!S.collapsed[ck];
+    const asmTr=document.createElement('tr');asmTr.className='asm-row'+(aTotal>0?' s-asm-mod':'');
+    const asmTd=document.createElement('td');asmTd.colSpan=colCount;
+    const tog=document.createElement('div');tog.className='asm-toggle';tog.dataset.action='togasm';tog.dataset.asmkey=ck;
+    const chev=document.createElement('span');chev.className='ch'+(collapsed?'':' open');chev.textContent='▶';
+    const nm=document.createElement('span');nm.textContent=asmName;
+    const cnt=document.createElement('span');cnt.style.cssText='color:var(--text3);font-weight:400;font-size:10px;font-family:var(--mono)';cnt.textContent=vis.length+' parts';
+    tog.appendChild(chev);tog.appendChild(nm);tog.appendChild(cnt);
+    if(aAdded||aRemoved||aChanged){const bw=document.createElement('span');bw.className='asm-badges';if(aAdded){const b=document.createElement('span');b.className='ab';b.style.cssText='background:var(--green-bg);color:var(--green)';b.textContent='+'+aAdded;bw.appendChild(b);}if(aRemoved){const b=document.createElement('span');b.className='ab';b.style.cssText='background:var(--red-bg);color:var(--red)';b.textContent='-'+aRemoved;bw.appendChild(b);}if(aChanged){const b=document.createElement('span');b.className='ab';b.style.cssText='background:var(--amber-bg);color:var(--amber)';b.textContent='~'+aChanged;bw.appendChild(b);}tog.appendChild(bw);}
+    asmTd.appendChild(tog);asmTr.appendChild(asmTd);frag.appendChild(asmTr);
+    if(collapsed)continue;
+
+    for(const part of vis){
+      const pg=getProgress(S.active,part._k);
+      const kidx=storeKey(part._k);
+      const rowCls=part.masterStatus==='added'?'s-added':part.masterStatus==='removed'?'s-removed':part.masterStatus==='changed'?'s-changed':'';
+      const tr=document.createElement('tr');tr.className='part '+rowCls;tr.dataset.kidx=kidx;
+      const td0=document.createElement('td');td0.className='mono';td0.textContent=part.assembly;tr.appendChild(td0);
+      const td1=document.createElement('td');const su=(part.section||'').toUpperCase();
+      if(su==='MAIN'){const b=document.createElement('span');b.className='section-main';b.textContent='MAIN';td1.appendChild(b);}
+      else if(part.section){const b=document.createElement('span');b.className='section-sec';b.textContent=part.section;td1.appendChild(b);}
+      else td1.textContent='—';
+      tr.appendChild(td1);
+      const td2=document.createElement('td');td2.className='mono';td2.textContent=part.partMark||'—';tr.appendChild(td2);
+      const td3=document.createElement('td');td3.style.fontSize='11px';td3.textContent=part.profile||'—';tr.appendChild(td3);
+      const td4=document.createElement('td');td4.className='mono';td4.textContent=part.length||'—';tr.appendChild(td4);
+      const td5=document.createElement('td');td5.className='mono';td5.textContent=part.qty||'—';tr.appendChild(td5);
+      const td6=document.createElement('td');td6.className='mono';td6.textContent=part.weight||'—';tr.appendChild(td6);
+      const tdp=document.createElement('td');const pd=document.createElement('div');pd.className='procs';
+      for(const p of PROCS){const on=!!pg.steps[p.k];const lbl=document.createElement('div');lbl.className='pc'+(on?' on':'');lbl.dataset.action='togproc';lbl.dataset.kidx=kidx;lbl.dataset.step=p.k;const cb=document.createElement('input');cb.type='checkbox';cb.checked=on;cb.tabIndex=-1;const sp=document.createElement('span');sp.className='pc-lbl';sp.textContent=p.l;lbl.appendChild(cb);lbl.appendChild(sp);pd.appendChild(lbl);}
+      tdp.appendChild(pd);tr.appendChild(tdp);
+      const tdpg=document.createElement('td');const pgd=document.createElement('div');pgd.className='prog';const pgb=document.createElement('div');pgb.className='prog-bar';const pgf=document.createElement('div');pgf.className='prog-fill';pgf.style.width=pg.pct+'%';const pgp=document.createElement('span');pgp.className='prog-pct';pgp.textContent=pg.pct+'%';pgb.appendChild(pgf);pgd.appendChild(pgb);pgd.appendChild(pgp);tdpg.appendChild(pgd);tr.appendChild(tdpg);
+      if(hasRevs){
+        const tdr=document.createElement('td');
+        if(part.revHistory&&part.revHistory.length){for(const h of part.revHistory){if(h.status==='added'){const b=document.createElement('span');b.className='badge b-added';b.textContent='Added in '+h.rev;tdr.appendChild(b);tdr.appendChild(document.createElement('br'));}else if(h.status==='removed'){const b=document.createElement('span');b.className='badge b-removed';b.textContent='Removed in '+h.rev;tdr.appendChild(b);tdr.appendChild(document.createElement('br'));}else{for(const c of h.changes){const b=document.createElement('span');b.className='badge b-changed';b.textContent=(c.type==='increased'?c.field+' ↑ ':c.type==='decreased'?c.field+' ↓ ':c.field+' changed: ')+c.from+' → '+c.to+' ('+h.rev+')';tdr.appendChild(b);tdr.appendChild(document.createElement('br'));}}}}
+        else{const sp=document.createElement('span');sp.style.cssText='color:var(--text3);font-size:10px';sp.textContent='Unchanged';tdr.appendChild(sp);}
+        tr.appendChild(tdr);
+      }
+      frag.appendChild(tr);
+    }
+  }
+  const tbody=document.getElementById('main-tbody');tbody.innerHTML='';
+  if(!hasRows){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=colCount;td.style.cssText='text-align:center;color:var(--text3);padding:32px';td.textContent='No items match the selected filter';tr.appendChild(td);tbody.appendChild(tr);}
+  else tbody.appendChild(frag);
+  syncBulkCheckboxes();
+}
+
+// ── RAW TABLE ──────────────────────────────────────────
+function renderRaw(proj,revIdx){
+  const rev=proj.revisions[revIdx];
+  const thead=document.getElementById('main-thead');thead.innerHTML='';
+  const tr=document.createElement('tr');
+  ['Assembly','Section','Part mark','Profile','Length','Qty','Weight','Material','Grid','Elev','Remark'].forEach(h=>{const th=document.createElement('th');th.textContent=h;tr.appendChild(th);});
+  thead.appendChild(tr);
+  const groups={};for(const p of rev.data){if(!groups[p.assembly])groups[p.assembly]=[];groups[p.assembly].push(p);}
+  const frag=document.createDocumentFragment();
+  for(const [asmName,parts] of Object.entries(groups)){
+    const ck='raw_'+S.active+'_'+revIdx+'_'+asmName,collapsed=!!S.collapsed[ck];
+    const asmTr=document.createElement('tr');asmTr.className='asm-row';const asmTd=document.createElement('td');asmTd.colSpan=11;
+    const tog=document.createElement('div');tog.className='asm-toggle';tog.dataset.action='togasmraw';tog.dataset.asmkey=ck;
+    const chev=document.createElement('span');chev.className='ch'+(collapsed?'':' open');chev.textContent='▶';
+    const nm=document.createElement('span');nm.textContent=asmName;
+    const cnt=document.createElement('span');cnt.style.cssText='color:var(--text3);font-weight:400;font-size:10px;font-family:var(--mono)';cnt.textContent=parts.length+' parts';
+    tog.appendChild(chev);tog.appendChild(nm);tog.appendChild(cnt);asmTd.appendChild(tog);asmTr.appendChild(asmTd);frag.appendChild(asmTr);
+    if(collapsed)continue;
+    for(const p of parts){
+      const tr=document.createElement('tr');tr.className='part';
+      const su=(p.section||'').toUpperCase();
+      [p.assembly,null,p.partMark,p.profile,p.length,p.qty,p.weight,p.material,p.grid,p.elev,p.remark].forEach((v,i)=>{
+        const td=document.createElement('td');
+        if(i===1){if(su==='MAIN'){const b=document.createElement('span');b.className='section-main';b.textContent='MAIN';td.appendChild(b);}else if(p.section){const b=document.createElement('span');b.className='section-sec';b.textContent=p.section;td.appendChild(b);}else td.textContent='—';}
+        else{td.className='mono';if(i===3)td.style.fontSize='11px';td.textContent=v||'—';}
+        tr.appendChild(td);
+      });
+      frag.appendChild(tr);
+    }
+  }
+  const tbody=document.getElementById('main-tbody');tbody.innerHTML='';tbody.appendChild(frag);
+}
+
+// ── BULK CHECK ─────────────────────────────────────────
+function syncBulkCheckboxes(){
+  const proj=S.projects[S.active];if(!proj)return;
+  const rows=[...document.querySelectorAll('#main-tbody tr.part')];
+  PROCS.forEach(p=>{
+    const cb=document.querySelector(`.bulk-cb[data-step="${p.k}"]`);if(!cb)return;
+    if(!rows.length){cb.checked=false;cb.indeterminate=false;return;}
+    const done=rows.filter(tr=>{const pk=resolveKey(tr.dataset.kidx);return pk&&!!(proj.progress&&proj.progress[pk]&&proj.progress[pk][p.k]);}).length;
+    if(done===rows.length){cb.checked=true;cb.indeterminate=false;}
+    else if(done===0){cb.checked=false;cb.indeterminate=false;}
+    else{cb.checked=false;cb.indeterminate=true;}
+  });
+}
+
+async function doBulkCheck(step,checked){
+  const proj=S.projects[S.active];if(!proj)return;
+  if(!proj.progress)proj.progress={};
+  const rows=[...document.querySelectorAll('#main-tbody tr.part')];
+  const updates=[];
+  rows.forEach(tr=>{
+    const kidx=tr.dataset.kidx,pk=resolveKey(kidx);if(!pk)return;
+    if(!proj.progress[pk])proj.progress[pk]={};
+    proj.progress[pk][step]=checked;updates.push(pk);
+    const pcEl=tr.querySelector(`.pc[data-step="${step}"]`);
+    if(pcEl){const cb=pcEl.querySelector('input[type=checkbox]');if(cb)cb.checked=checked;if(checked)pcEl.classList.add('on');else pcEl.classList.remove('on');}
+    const pg=getProgress(S.active,pk);
+    const bar=tr.querySelector('.prog-fill'),pct=tr.querySelector('.prog-pct');
+    if(bar)bar.style.width=pg.pct+'%';if(pct)pct.textContent=pg.pct+'%';
+  });
+  saveLocal();syncBulkCheckboxes();
+  showToast((checked?'Checked':'Unchecked')+' '+PROCS.find(p=>p.k===step).l+' for '+rows.length+' visible parts');
+  setSyncStatus('busy','Saving '+updates.length+' rows…');
+  let ok=0;
+  for(const pk of updates){
+    const [assembly,partMark]=pk.split('||');
+    try{await apiPost({action:'saveProgress',projectId:S.active,projectName:proj.name,partKey:pk,step,checked,partMark,assembly,updatedBy:S.userName||'bulk'});ok++;}
+    catch(e){/*continue*/}
+  }
+  setSyncStatus('ok','Saved '+ok+'/'+updates.length+' · '+new Date().toLocaleTimeString('ja-JP'));
+}
+
+// ── EVENT DELEGATION ───────────────────────────────────
+document.addEventListener('click',function(e){
+  if(e.target.id==='btn-new-proj'||e.target.id==='btn-new-proj2'){openNewProj();return;}
+  if(e.target.id==='btn-refresh'){fullRefresh(false);return;}
+  const pi=e.target.closest('.proj-item');if(pi){selProj(pi.dataset.projid);return;}
+  const fc=e.target.closest('[data-filter]');if(fc){S._filter=fc.dataset.filter;renderPView();return;}
+  const el=e.target.closest('[data-action]');if(!el)return;
+  const action=el.dataset.action;
+  if(action==='tomaster'){S._view='master';renderPView();return;}
+  if(action==='toraw'){S._view='raw';S._rawRev=parseInt(el.dataset.rev,10);renderPView();return;}
+  if(action==='openrev'){openRevModal();return;}
+  if(action==='delproj'){delProj(S.active);return;}
+  if(action==='togasm'){S.collapsed[el.dataset.asmkey]=!S.collapsed[el.dataset.asmkey];renderPView();return;}
+  if(action==='togasmraw'){S.collapsed[el.dataset.asmkey]=!S.collapsed[el.dataset.asmkey];renderPView();return;}
+  if(action==='togproc'){
+    const pk=resolveKey(el.dataset.kidx);if(!pk)return;
+    const proj=S.projects[S.active];
+    if(!proj.progress)proj.progress={};
+    if(!proj.progress[pk])proj.progress[pk]={};
+    const step=el.dataset.step;
+    const newVal=!proj.progress[pk][step];
+    proj.progress[pk][step]=newVal;
+    const cb=el.querySelector('input[type=checkbox]');if(cb)cb.checked=newVal;
+    if(newVal)el.classList.add('on');else el.classList.remove('on');
+    saveLocal();
+    const tr=el.closest('tr');
+    if(tr){const pg=getProgress(S.active,pk);const bar=tr.querySelector('.prog-fill');const pct=tr.querySelector('.prog-pct');if(bar)bar.style.width=pg.pct+'%';if(pct)pct.textContent=pg.pct+'%';}
+    syncBulkCheckboxes();
+    const [assembly,partMark]=pk.split('||');
+    syncTick(S.active,pk,step,newVal,partMark,assembly);
+    return;
+  }
+});
+
+document.addEventListener('change',function(e){
+  if(e.target.classList.contains('bulk-cb')){doBulkCheck(e.target.dataset.step,e.target.checked);}
+});
+
+// ── DELETE PROJECT ────────────────────────────────────
+function delProj(id){
+  if(!confirm('Delete this project from this device?\n\nNote: This only removes it locally. The BOM and progress data stays in Google Sheets.'))return;
+  delete S.projects[id];S.active=null;
+  document.getElementById('empty').classList.remove('hidden');
+  document.getElementById('pview').className='hidden';
+  saveLocal();renderSB();
+}
+
+// ── FILE UTILS ─────────────────────────────────────────
+function readFile(file,cb){
+  const r=new FileReader();
+  r.onload=function(e){try{const wb=file.name.toLowerCase().endsWith('.csv')?XLSX.read(e.target.result,{type:'string'}):XLSX.read(e.target.result,{type:'array'});cb(null,wb);}catch(err){cb(err);}};
+  if(file.name.toLowerCase().endsWith('.csv'))r.readAsText(file);else r.readAsArrayBuffer(file);
+}
+function showDetect(dzId,diId,file,result){
+  const dz=document.getElementById(dzId),di=document.getElementById(diId);if(!dz||!di)return;
+  const ok=result.colsFound>=3;
+  dz.className='dz '+(ok?'dz-ok':'dz-warn');
+  dz.innerHTML=`<div style="font-size:22px;margin-bottom:6px">${ok?'✅':'⚠️'}</div><div>${esc(file.name)}</div><div style="font-size:10px;margin-top:3px">${result.data.length} parts · header row ${result.headerRow} · ${result.colsFound} known columns</div>`;
+  di.className='detect-info '+(ok?'detect-ok':'detect-warn');di.style.display='block';di.textContent=result.headers.filter(h=>h).join('  ·  ');
+}
+
+// ── NEW PROJECT MODAL ─────────────────────────────────
+function openNewProj(){
+  window._NP={parsed:null};
+  document.getElementById('mc').innerHTML=`
+    <div class="overlay" id="np-ov"><div class="modal">
+      <div class="modal-title">New Project <button class="mc" id="np-x">×</button></div>
+      <div class="fg"><label class="fl2">Project name</label><input class="fi" id="np-n" placeholder="e.g. Shibuya Office Tower — Steel Frame"></div>
+      <div class="fg"><label class="fl2">Client</label><input class="fi" id="np-c" placeholder="e.g. Takenaka Corporation"></div>
+      <div class="fg"><label class="fl2">Import Tekla BOM (Rev 0)</label>
+        <div class="dz" id="np-dz"><div style="font-size:22px;margin-bottom:6px">📂</div><div>Click to browse or drag BOM file here</div><div style="font-size:10px;color:var(--text3);margin-top:3px">xlsx / xls / csv — header row auto-detected</div></div>
+        <input type="file" id="np-fi" accept=".xlsx,.xls,.csv" style="display:none">
+        <div id="np-di" style="display:none"></div>
+      </div>
+      <div class="ma"><button class="btn" id="np-cancel">Cancel</button><button class="btn btn-p" id="np-create">Create &amp; sync to Sheets</button></div>
+    </div></div>`;
+  document.getElementById('np-x').onclick=closeModal;
+  document.getElementById('np-cancel').onclick=closeModal;
+  document.getElementById('np-ov').onclick=(e)=>{if(e.target===e.currentTarget)closeModal();};
+  const dz=document.getElementById('np-dz'),fi=document.getElementById('np-fi');
+  dz.onclick=()=>fi.click();
+  dz.ondragover=(e)=>{e.preventDefault();dz.classList.add('over');};
+  dz.ondragleave=()=>dz.classList.remove('over');
+  dz.ondrop=(e)=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])npLoad(e.dataTransfer.files[0]);};
+  fi.onchange=(e)=>{if(e.target.files[0])npLoad(e.target.files[0]);};
+  document.getElementById('np-create').onclick=createProj;
+}
+function npLoad(file){readFile(file,(err,wb)=>{if(err){showToast('Read error: '+err.message,'err');return;}const r=detectAndParse(wb);window._NP.parsed=r;showDetect('np-dz','np-di',file,r);});}
+async function createProj(){
+  const name=document.getElementById('np-n').value.trim();
+  const client=document.getElementById('np-c').value.trim();
+  if(!name){showToast('Project name required');return;}
+  if(!window._NP.parsed){showToast('Please import a BOM file');return;}
+  const clean=window._NP.parsed.data.filter(r=>r['ASSM-MK']||r['PART-MK']);
+  if(!clean.length){showToast('No valid part rows found');return;}
+  const parts=clean.map((r,i)=>mapRow(r,i));
+  const id=uid();
+  const today=new Date().toLocaleDateString('ja-JP');
+  S.projects[id]={name,client,revisions:[{rev:0,date:today,data:parts}],progress:{}};
+  saveLocal();closeModal();renderSB();selProj(id);
+  showToast('Project created — syncing BOM to Google Sheets…');
+  await syncRevision(id,0,today,parts);
+  showToast('Project "'+name+'" ready — team can now see it after they refresh');
+}
+
+// ── ADD REVISION MODAL ────────────────────────────────
+function openRevModal(){
+  const proj=S.projects[S.active],nextRev=proj.revisions.length;
+  window._RV={parsed:null};
+  document.getElementById('mc').innerHTML=`
+    <div class="overlay" id="rv-ov"><div class="modal">
+      <div class="modal-title">Add Revision ${nextRev} BOM <button class="mc" id="rv-x">×</button></div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">
+        Import the updated BOM. It will be stored as Rev ${nextRev} in Google Sheets automatically —
+        your team will see the updated BOM next time they refresh.
+      </p>
+      <div class="fg"><label class="fl2">Updated BOM file — Rev ${nextRev}</label>
+        <div class="dz" id="rv-dz"><div style="font-size:22px;margin-bottom:6px">📂</div><div>Click to browse or drag Rev ${nextRev} BOM</div><div style="font-size:10px;color:var(--text3);margin-top:3px">Header row auto-detected</div></div>
+        <input type="file" id="rv-fi" accept=".xlsx,.xls,.csv" style="display:none">
+        <div id="rv-di" style="display:none"></div>
+      </div>
+      <div class="ma"><button class="btn" id="rv-cancel">Cancel</button><button class="btn btn-p" id="rv-add">Add Revision ${nextRev} &amp; sync</button></div>
+    </div></div>`;
+  document.getElementById('rv-x').onclick=closeModal;
+  document.getElementById('rv-cancel').onclick=closeModal;
+  document.getElementById('rv-ov').onclick=(e)=>{if(e.target===e.currentTarget)closeModal();};
+  const dz=document.getElementById('rv-dz'),fi=document.getElementById('rv-fi');
+  dz.onclick=()=>fi.click();
+  dz.ondragover=(e)=>{e.preventDefault();dz.classList.add('over');};
+  dz.ondragleave=()=>dz.classList.remove('over');
+  dz.ondrop=(e)=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])rvLoad(e.dataTransfer.files[0]);};
+  fi.onchange=(e)=>{if(e.target.files[0])rvLoad(e.target.files[0]);};
+  document.getElementById('rv-add').onclick=()=>addRev(nextRev);
+}
+function rvLoad(file){readFile(file,(err,wb)=>{if(err){showToast('Read error: '+err.message,'err');return;}const r=detectAndParse(wb);window._RV.parsed=r;showDetect('rv-dz','rv-di',file,r);});}
+async function addRev(revNum){
+  if(!window._RV.parsed){showToast('Please import a BOM file');return;}
+  const proj=S.projects[S.active];
+  const clean=window._RV.parsed.data.filter(r=>r['ASSM-MK']||r['PART-MK']);
+  if(!clean.length){showToast('No valid part rows found');return;}
+  const parts=clean.map((r,i)=>mapRow(r,i));
+  const today=new Date().toLocaleDateString('ja-JP');
+  proj.revisions.push({rev:revNum,date:today,data:parts});
+  S._view='master';S._filter='all';
+  saveLocal();closeModal();renderSB();renderPView();
+  showToast('Revision '+revNum+' added — syncing to Google Sheets…');
+  await syncRevision(S.active,revNum,today,parts);
+  showToast('Revision '+revNum+' synced — team will see it on next refresh');
+}
+
+// ── INIT ──────────────────────────────────────────────
+loadLocal();
+const hasCache = Object.keys(S.projects).length > 0;
+
+if(hasCache){
+  // Returning user — show UI instantly from cache, sync quietly in background
+  renderSB();
+  if(S.active && S.projects[S.active]) renderPView();
+  requestAnimationFrame(()=>{ setTimeout(()=>fullRefresh(true), 100); });
+} else {
+  // First time / incognito — show loading screen and wait for Sheets
+  const lo = document.getElementById('app-loading');
+  if(lo) lo.style.display = 'flex';
+  fullRefresh(true).then(()=>{
+    if(lo) lo.style.display = 'none';
+    // If still no projects after sync, show empty state normally
+    renderSB();
+  });
+}
+</script>
+</body>
+</html>
